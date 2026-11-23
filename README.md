@@ -18,17 +18,17 @@ Driver cg6kwin2k.sys allows utility and management software to interact with sys
 
 Fixed vulnerabilities in opensource driver cg6kwin2k.sys:
 
-- [ ] (LOLDrivers: cg6kwin2k.sys)[https://www.loldrivers.io/drivers/fda3ff67-12dc-488c-a4c2-603f5bf420bd/]
-  - Sangoma cg6kwin2k versions before 2.1.7.0 expose IOCTLs without sufficient access control (CVE-2024-29216). A low-privilege user can perform I/O against arbitrary hardware ports or physical addresses, enabling firmware erasure or modification.
+- [x] (LOLDrivers: cg6kwin2k.sys)[https://www.loldrivers.io/drivers/fda3ff67-12dc-488c-a4c2-603f5bf420bd/]
+  - Sangoma cg6kwin2k versions before 2.1.7.0 expose IOCTLs without sufficient access control (CVE-2024-29216). A low-privilege user can perform I/O against arbitrary hardware ports or physical addresses, enabling firmware erasure or modification. Fixed by enforcing administrative ACLs on device creation.
 
 Fixed no publish vulnerabilities and bugs which contributors to this project found:
 
-- [ ] Device deletion bypassed on symbolic link deletion failure ([view code](main.c))
-- [ ] Arbitrary physical memory read and write in commands 0x80012F18, 0x80012F1C ([view code](mem.c))
-- [ ] Arbitrary physical memory word and dword access in commands 0x80012EE4, 0x80012EE8, 0x80012EF0, 0x80012EF4, 0x80012F10, 0x80012F14 ([view code](mem.c))
-- [ ] Unfiltered write to critical x86 I/O ports and controllers in commands 0x80012EF8, 0x80012EFC, 0x80012F28, 0x80012F2C, 0x80012F30, 0x80012F34 ([view code](io.c))
-- [ ] Arbitrary PCI configuration space modification in commands 0x80012EE0, 0x80012F00, 0x80012F04, 0x80012F08, 0x80012F0C, 0x80012F20 ([view code](pci.c))
-- [ ] Device creation with weak permissions ([view code](main.c))
+- [x] Device deletion bypassed on symbolic link deletion failure ([view code](main.c))
+- [x] Arbitrary physical memory read and write in commands 0x80012F18, 0x80012F1C ([view code](mem.c))
+- [x] Arbitrary physical memory word and dword access in commands 0x80012EE4, 0x80012EE8, 0x80012EF0, 0x80012EF4, 0x80012F10, 0x80012F14 ([view code](mem.c))
+- [x] Unfiltered write to critical x86 I/O ports and controllers in commands 0x80012EF8, 0x80012EFC, 0x80012F28, 0x80012F2C, 0x80012F30, 0x80012F34 ([view code](io.c))
+- [x] Arbitrary PCI configuration space modification in commands 0x80012EE0, 0x80012F00, 0x80012F04, 0x80012F08, 0x80012F0C, 0x80012F20 ([view code](pci.c))
+- [x] Device creation with weak permissions ([view code](main.c))
 
 Authors:
 
