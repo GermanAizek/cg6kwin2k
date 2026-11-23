@@ -2,6 +2,7 @@
 
 #include <ntddk.h>
 #include <wdm.h>
+#include <wdmsec.h>
 #include <ntstrsafe.h>
 
 #define CG6K_DEVICE_NAME            L"\\Device\\CG6K"

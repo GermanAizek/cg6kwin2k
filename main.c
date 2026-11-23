@@ -1,5 +1,10 @@
 #include "cg6kwin2k.h"
 
+// Device Class GUID for cg6kwin2k (LOLDrivers: fda3ff67-12dc-488c-a4c2-603f5bf420bd)
+static const GUID GUID_DEVCLASS_CG6K = {
+    0xFDA3FF67, 0x12DC, 0x488C, { 0xA4, 0xC2, 0x60, 0x3F, 0x5B, 0xF4, 0x20, 0xBD }
+};
+
 PDEVICE_OBJECT g_DeviceObject = NULL;
 PDRIVER_OBJECT g_DriverObject = NULL;
 
@@ -45,6 +50,8 @@ VOID Cg6kUnload(
 
         RtlInitUnicodeString(&dosDeviceName, CG6K_DOS_DEVICE_NAME);
         IoDeleteSymbolicLink(&dosDeviceName);
+
+        // FIX: Unconditionally delete device object to prevent resource leak on unload
         IoDeleteDevice(g_DeviceObject);
         g_DeviceObject = NULL;
     }
@@ -228,6 +235,7 @@ NTSTATUS DriverEntry(
     NTSTATUS status;
     UNICODE_STRING deviceName;
     UNICODE_STRING dosDeviceName;
+    UNICODE_STRING sddl;
     PCG6K_DEVICE_EXTENSION devExt;
     LARGE_INTEGER dueTime;
 
@@ -235,14 +243,28 @@ NTSTATUS DriverEntry(
 
     g_DriverObject = DriverObject;
 
+    DriverObject->MajorFunction[IRP_MJ_CREATE] = Cg6kCreateClose;
+    DriverObject->MajorFunction[IRP_MJ_CLOSE] = Cg6kCreateClose;
+    DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = Cg6kDispatchIoControl;
+    DriverObject->MajorFunction[IRP_MJ_INTERNAL_DEVICE_CONTROL] = Cg6kDispatchIoControl;
+    DriverObject->DriverUnload = Cg6kUnload;
+
     RtlInitUnicodeString(&deviceName, CG6K_DEVICE_NAME);
-    status = IoCreateDevice(
+    RtlInitUnicodeString(&dosDeviceName, CG6K_DOS_DEVICE_NAME);
+
+    // FIX: Secure device creation to mitigate unprivileged access (LOLDrivers: cg6kwin2k.sys, CVE-2024-29216)
+    // SDDL: D:P(A;;GA;;;SY)(A;;GA;;;BA)
+    RtlInitUnicodeString(&sddl, L"D:P(A;;GA;;;SY)(A;;GA;;;BA)");
+
+    status = IoCreateDeviceSecure(
         DriverObject,
         sizeof(CG6K_DEVICE_EXTENSION),
         &deviceName,
         CG6K_DEVICE_TYPE,
-        0,
+        FILE_DEVICE_SECURE_OPEN,
         FALSE,
+        &sddl,
+        &GUID_DEVCLASS_CG6K,
         &g_DeviceObject
     );
 
@@ -250,9 +272,9 @@ NTSTATUS DriverEntry(
         return status;
     }
 
-    RtlInitUnicodeString(&dosDeviceName, CG6K_DOS_DEVICE_NAME);
     status = IoCreateSymbolicLink(&dosDeviceName, &deviceName);
     if (!NT_SUCCESS(status)) {
+        // FIX: Clean up device object on symbolic link creation failure
         IoDeleteDevice(g_DeviceObject);
         g_DeviceObject = NULL;
         return status;
@@ -268,12 +290,6 @@ NTSTATUS DriverEntry(
     dueTime.QuadPart = -10000000LL; // 1 second
     KeSetTimerEx(&devExt->Timer, dueTime, 1000, &devExt->Dpc);
     devExt->TimerActive = TRUE;
-
-    DriverObject->MajorFunction[IRP_MJ_CREATE] = Cg6kCreateClose;
-    DriverObject->MajorFunction[IRP_MJ_CLOSE] = Cg6kCreateClose;
-    DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = Cg6kDispatchIoControl;
-    DriverObject->MajorFunction[IRP_MJ_INTERNAL_DEVICE_CONTROL] = Cg6kDispatchIoControl;
-    DriverObject->DriverUnload = Cg6kUnload;
 
     return STATUS_SUCCESS;
 }
