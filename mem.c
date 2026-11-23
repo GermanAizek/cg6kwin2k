@@ -5,9 +5,33 @@ BOOLEAN Cg6kValidatePhysicalAddress(
     SIZE_T Length
 )
 {
-    UNREFERENCED_PARAMETER(Address);
-    UNREFERENCED_PARAMETER(Length);
-    return TRUE;
+    // Check for overflow
+    if (Address + Length < Address) {
+        return FALSE;
+    }
+
+    // Limit maximum transfer size (64KB)
+    if (Length == 0 || Length > 0x10000) {
+        return FALSE;
+    }
+
+    // Block lower physical memory containing IVT, BDA, and kernel zero-page
+    if (Address < 0x000A0000) {
+        return FALSE;
+    }
+
+    // Allow BIOS / Option ROM / Video RAM area: 0x000A0000 - 0x00100000
+    if (Address >= 0x000A0000 && (Address + Length) <= 0x00100000) {
+        return TRUE;
+    }
+
+    // Allow hardware MMIO address space (PCI BARs / hardware registers)
+    if (Address >= 0xC0000000) {
+        return TRUE;
+    }
+
+    // Block arbitrary system RAM access
+    return FALSE;
 }
 
 NTSTATUS Cg6kReadPhysicalMemory(
@@ -21,6 +45,7 @@ NTSTATUS Cg6kReadPhysicalMemory(
     PHYSICAL_ADDRESS physAddr;
     ULONG length;
     PVOID pMapped = NULL;
+    NTSTATUS status = STATUS_SUCCESS;
 
     if (pBuf == NULL || inLen < sizeof(ULONG) * 2) {
         return STATUS_INVALID_PARAMETER;
@@ -33,6 +58,7 @@ NTSTATUS Cg6kReadPhysicalMemory(
         return STATUS_BUFFER_TOO_SMALL;
     }
 
+    // FIX: Restrict arbitrary physical memory read to safe hardware MMIO and BIOS ranges
     if (!Cg6kValidatePhysicalAddress((ULONG_PTR)physAddr.QuadPart, length)) {
         return STATUS_ACCESS_DENIED;
     }
@@ -42,11 +68,18 @@ NTSTATUS Cg6kReadPhysicalMemory(
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    RtlCopyMemory(pBuf, pMapped, length);
-    MmUnmapIoSpace(pMapped, length);
+    __try {
+        __try {
+            RtlCopyMemory(pBuf, pMapped, length);
+            Irp->IoStatus.Information = length;
+        } __except (EXCEPTION_EXECUTE_HANDLER) {
+            status = GetExceptionCode();
+        }
+    } __finally {
+        MmUnmapIoSpace(pMapped, length);
+    }
 
-    Irp->IoStatus.Information = length;
-    return STATUS_SUCCESS;
+    return status;
 }
 
 NTSTATUS Cg6kWritePhysicalMemory(
@@ -59,6 +92,7 @@ NTSTATUS Cg6kWritePhysicalMemory(
     PHYSICAL_ADDRESS physAddr;
     ULONG length;
     PVOID pMapped = NULL;
+    NTSTATUS status = STATUS_SUCCESS;
 
     if (pBuf == NULL || inLen < sizeof(ULONG) * 3) {
         return STATUS_INVALID_PARAMETER;
@@ -71,6 +105,7 @@ NTSTATUS Cg6kWritePhysicalMemory(
         return STATUS_BUFFER_TOO_SMALL;
     }
 
+    // FIX: Restrict arbitrary physical memory write to safe hardware MMIO ranges
     if (!Cg6kValidatePhysicalAddress((ULONG_PTR)physAddr.QuadPart, length)) {
         return STATUS_ACCESS_DENIED;
     }
@@ -80,11 +115,18 @@ NTSTATUS Cg6kWritePhysicalMemory(
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    RtlCopyMemory(pMapped, (PUCHAR)(pBuf + 3), length);
-    MmUnmapIoSpace(pMapped, length);
+    __try {
+        __try {
+            RtlCopyMemory(pMapped, (PUCHAR)(pBuf + 3), length);
+            Irp->IoStatus.Information = length;
+        } __except (EXCEPTION_EXECUTE_HANDLER) {
+            status = GetExceptionCode();
+        }
+    } __finally {
+        MmUnmapIoSpace(pMapped, length);
+    }
 
-    Irp->IoStatus.Information = length;
-    return STATUS_SUCCESS;
+    return status;
 }
 
 NTSTATUS Cg6kReadPhysicalWord(
