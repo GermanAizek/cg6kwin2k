@@ -135,7 +135,7 @@ BOOLEAN Cg6kValidatePhysicalAddress(ULONG_PTR Address, SIZE_T Length);
 // io.c
 NTSTATUS Cg6kReadPort(PIRP Irp, PIO_STACK_LOCATION irpSp, ULONG Width);
 NTSTATUS Cg6kWritePort(PIRP Irp, PIO_STACK_LOCATION irpSp, ULONG Width);
-BOOLEAN Cg6kValidateIOPortAccess(USHORT Port, ULONG Width);
+BOOLEAN Cg6kValidateIOPortAccess(USHORT Port, ULONG Width, BOOLEAN IsWrite);
 
 // pci.c
 NTSTATUS Cg6kPciOperation(PIRP Irp, PIO_STACK_LOCATION irpSp, BOOLEAN IsRead, ULONG Width);
