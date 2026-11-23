@@ -143,6 +143,7 @@ NTSTATUS Cg6kReadPhysicalWord(
     PUSHORT pDest;
     ULONG wordCount;
     ULONG i;
+    NTSTATUS status = STATUS_SUCCESS;
 
     if (pBuf == NULL || inLen < sizeof(ULONG) * 2) {
         return STATUS_INVALID_PARAMETER;
@@ -155,6 +156,12 @@ NTSTATUS Cg6kReadPhysicalWord(
         return STATUS_BUFFER_TOO_SMALL;
     }
 
+    // FIX: Enforce 2-byte alignment for word read access
+    if ((physAddr.QuadPart & 1) != 0) {
+        return STATUS_DATATYPE_MISALIGNMENT;
+    }
+
+    // FIX: Restrict arbitrary physical memory word read to safe hardware MMIO ranges
     if (!Cg6kValidatePhysicalAddress((ULONG_PTR)physAddr.QuadPart, length)) {
         return STATUS_ACCESS_DENIED;
     }
@@ -164,19 +171,25 @@ NTSTATUS Cg6kReadPhysicalWord(
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    pDest = (PUSHORT)pBuf;
-    wordCount = length / sizeof(USHORT);
-    for (i = 0; i < wordCount; i++) {
-        pDest[i] = pMapped[i];
-    }
-    if (length & 1) {
-        ((PUCHAR)pDest)[length - 1] = ((PUCHAR)pMapped)[length - 1];
+    __try {
+        __try {
+            pDest = (PUSHORT)pBuf;
+            wordCount = length / sizeof(USHORT);
+            for (i = 0; i < wordCount; i++) {
+                pDest[i] = pMapped[i];
+            }
+            if (length & 1) {
+                ((PUCHAR)pDest)[length - 1] = ((PUCHAR)pMapped)[length - 1];
+            }
+            Irp->IoStatus.Information = length;
+        } __except (EXCEPTION_EXECUTE_HANDLER) {
+            status = GetExceptionCode();
+        }
+    } __finally {
+        MmUnmapIoSpace(pMapped, length);
     }
 
-    MmUnmapIoSpace(pMapped, length);
-
-    Irp->IoStatus.Information = length;
-    return STATUS_SUCCESS;
+    return status;
 }
 
 NTSTATUS Cg6kWritePhysicalWord(
@@ -192,6 +205,7 @@ NTSTATUS Cg6kWritePhysicalWord(
     PUSHORT pSrc;
     ULONG wordCount;
     ULONG i;
+    NTSTATUS status = STATUS_SUCCESS;
 
     if (pBuf == NULL || inLen < sizeof(ULONG) * 3) {
         return STATUS_INVALID_PARAMETER;
@@ -204,6 +218,12 @@ NTSTATUS Cg6kWritePhysicalWord(
         return STATUS_BUFFER_TOO_SMALL;
     }
 
+    // FIX: Enforce 2-byte alignment for word write access
+    if ((physAddr.QuadPart & 1) != 0) {
+        return STATUS_DATATYPE_MISALIGNMENT;
+    }
+
+    // FIX: Restrict arbitrary physical memory word write to safe hardware MMIO ranges
     if (!Cg6kValidatePhysicalAddress((ULONG_PTR)physAddr.QuadPart, length)) {
         return STATUS_ACCESS_DENIED;
     }
@@ -213,19 +233,25 @@ NTSTATUS Cg6kWritePhysicalWord(
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    pSrc = (PUSHORT)(pBuf + 3);
-    wordCount = length / sizeof(USHORT);
-    for (i = 0; i < wordCount; i++) {
-        pMapped[i] = pSrc[i];
-    }
-    if (length & 1) {
-        ((PUCHAR)pMapped)[length - 1] = ((PUCHAR)pSrc)[length - 1];
+    __try {
+        __try {
+            pSrc = (PUSHORT)(pBuf + 3);
+            wordCount = length / sizeof(USHORT);
+            for (i = 0; i < wordCount; i++) {
+                pMapped[i] = pSrc[i];
+            }
+            if (length & 1) {
+                ((PUCHAR)pMapped)[length - 1] = ((PUCHAR)pSrc)[length - 1];
+            }
+            Irp->IoStatus.Information = length;
+        } __except (EXCEPTION_EXECUTE_HANDLER) {
+            status = GetExceptionCode();
+        }
+    } __finally {
+        MmUnmapIoSpace(pMapped, length);
     }
 
-    MmUnmapIoSpace(pMapped, length);
-
-    Irp->IoStatus.Information = length;
-    return STATUS_SUCCESS;
+    return status;
 }
 
 NTSTATUS Cg6kReadPhysicalDword(
@@ -242,6 +268,7 @@ NTSTATUS Cg6kReadPhysicalDword(
     PULONG pDest;
     ULONG dwordCount;
     ULONG i;
+    NTSTATUS status = STATUS_SUCCESS;
 
     if (pBuf == NULL || inLen < sizeof(ULONG) * 2) {
         return STATUS_INVALID_PARAMETER;
@@ -254,6 +281,12 @@ NTSTATUS Cg6kReadPhysicalDword(
         return STATUS_BUFFER_TOO_SMALL;
     }
 
+    // FIX: Enforce 4-byte alignment for dword read access
+    if ((physAddr.QuadPart & 3) != 0 || (length & 3) != 0) {
+        return STATUS_DATATYPE_MISALIGNMENT;
+    }
+
+    // FIX: Restrict arbitrary physical memory dword read to safe hardware MMIO ranges
     if (!Cg6kValidatePhysicalAddress((ULONG_PTR)physAddr.QuadPart, length)) {
         return STATUS_ACCESS_DENIED;
     }
@@ -263,16 +296,22 @@ NTSTATUS Cg6kReadPhysicalDword(
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    pDest = pBuf;
-    dwordCount = length / sizeof(ULONG);
-    for (i = 0; i < dwordCount; i++) {
-        pDest[i] = pMapped[i];
+    __try {
+        __try {
+            pDest = pBuf;
+            dwordCount = length / sizeof(ULONG);
+            for (i = 0; i < dwordCount; i++) {
+                pDest[i] = pMapped[i];
+            }
+            Irp->IoStatus.Information = length;
+        } __except (EXCEPTION_EXECUTE_HANDLER) {
+            status = GetExceptionCode();
+        }
+    } __finally {
+        MmUnmapIoSpace(pMapped, length);
     }
 
-    MmUnmapIoSpace(pMapped, length);
-
-    Irp->IoStatus.Information = length;
-    return STATUS_SUCCESS;
+    return status;
 }
 
 NTSTATUS Cg6kWritePhysicalDword(
@@ -288,6 +327,7 @@ NTSTATUS Cg6kWritePhysicalDword(
     PULONG pSrc;
     ULONG dwordCount;
     ULONG i;
+    NTSTATUS status = STATUS_SUCCESS;
 
     if (pBuf == NULL || inLen < sizeof(ULONG) * 3) {
         return STATUS_INVALID_PARAMETER;
@@ -300,6 +340,12 @@ NTSTATUS Cg6kWritePhysicalDword(
         return STATUS_BUFFER_TOO_SMALL;
     }
 
+    // FIX: Enforce 4-byte alignment for dword write access
+    if ((physAddr.QuadPart & 3) != 0 || (length & 3) != 0) {
+        return STATUS_DATATYPE_MISALIGNMENT;
+    }
+
+    // FIX: Restrict arbitrary physical memory dword write to safe hardware MMIO ranges
     if (!Cg6kValidatePhysicalAddress((ULONG_PTR)physAddr.QuadPart, length)) {
         return STATUS_ACCESS_DENIED;
     }
@@ -309,14 +355,20 @@ NTSTATUS Cg6kWritePhysicalDword(
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    pSrc = pBuf + 3;
-    dwordCount = length / sizeof(ULONG);
-    for (i = 0; i < dwordCount; i++) {
-        pMapped[i] = pSrc[i];
+    __try {
+        __try {
+            pSrc = pBuf + 3;
+            dwordCount = length / sizeof(ULONG);
+            for (i = 0; i < dwordCount; i++) {
+                pMapped[i] = pSrc[i];
+            }
+            Irp->IoStatus.Information = length;
+        } __except (EXCEPTION_EXECUTE_HANDLER) {
+            status = GetExceptionCode();
+        }
+    } __finally {
+        MmUnmapIoSpace(pMapped, length);
     }
 
-    MmUnmapIoSpace(pMapped, length);
-
-    Irp->IoStatus.Information = length;
-    return STATUS_SUCCESS;
+    return status;
 }
